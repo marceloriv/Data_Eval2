@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  db:
+    build: .
+    container_name: mysql_database
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      # Credenciales principales del servidor MySQL
+      MYSQL_ROOT_PASSWORD: rootpassword
+      # El contenedor creará esta base de datos automáticamente si no existe
+      MYSQL_DATABASE: proyecto_db
+
+      # Opcional: Crear el usuario 'app_user' sugerido en tu README (Configuración de Red)
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    volumes:
+      # Persistencia de los datos para no perderlos si se apaga el contenedor
+      - mysql_data:/var/lib/mysql
+    # Configuración de caracteres sugerida en el README
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql_data:
