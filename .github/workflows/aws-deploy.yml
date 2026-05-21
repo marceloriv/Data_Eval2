@@ -1,0 +1,65 @@
+name: CI/CD Data - Migraciones MySQL
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: copiar scripts sql a data via bastion
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DATA_PRIVATE_IP }}
+          username: ubuntu
+          
+          key: ${{ secrets.PRIVATE_SSH_KEY }}
+          proxy_host: ${{ secrets.BASTION_PUBLIC_IP }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.BASTION_SSH_KEY }}
+          source: "*.sql"
+          target: "/home/ubuntu/migrations"
+
+      - name: ejecutar migraciones en data
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DATA_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.PRIVATE_SSH_KEY }}
+          proxy_host: ${{ secrets.BASTION_PUBLIC_IP }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.BASTION_SSH_KEY }}
+          script: |
+            echo "=== Verificando MySQL ==="
+            if ! command -v mysql &> /dev/null; then
+              echo "Instalando MySQL Server..."
+              sudo apt update && sudo apt install -y mysql-server
+            fi
+
+            sudo systemctl start mysql || true
+
+            # Configurar base de datos
+            sudo mysql -u root << 'SQL'
+              CREATE DATABASE IF NOT EXISTS ${{ secrets.MYSQL_DATABASE }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+              CREATE USER IF NOT EXISTS '${{ secrets.MYSQL_USER }}'@'localhost' IDENTIFIED BY '${{ secrets.MYSQL_PASSWORD }}';
+              GRANT ALL PRIVILEGES ON ${{ secrets.MYSQL_DATABASE }}.* TO '${{ secrets.MYSQL_USER }}'@'localhost';
+              FLUSH PRIVILEGES;
+            SQL
+
+            # Ejecutar migraciones si existen
+            if ls /home/ubuntu/migrations/*.sql 1>/dev/null 2>&1; then
+              echo "Ejecutando migraciones..."
+              for file in /home/ubuntu/migrations/*.sql; do
+                echo "Procesando: $file"
+                mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} ${{ secrets.MYSQL_DATABASE }} < "$file"
+              done
+              echo "Migraciones completadas"
+            else
+              echo "No hay archivos SQL para migrar"
+            fi
