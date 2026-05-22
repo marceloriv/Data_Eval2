@@ -18,7 +18,6 @@ jobs:
         with:
           host: ${{ secrets.DATA_PRIVATE_IP }}
           username: ubuntu
-          
           key: ${{ secrets.PRIVATE_SSH_KEY }}
           proxy_host: ${{ secrets.BASTION_PUBLIC_IP }}
           proxy_username: ubuntu
@@ -43,12 +42,18 @@ jobs:
             fi
 
             sudo systemctl start mysql || true
+            sudo systemctl enable mysql || true
+
+            # Configurar MySQL para aceptar conexiones remotas
+            sudo sed -i 's/bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf 2>/dev/null || \
+            sudo sed -i 's/bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf 2>/dev/null || true
+            sudo systemctl restart mysql
 
             # Configurar base de datos
             sudo mysql -u root << 'SQL'
               CREATE DATABASE IF NOT EXISTS ${{ secrets.MYSQL_DATABASE }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-              CREATE USER IF NOT EXISTS '${{ secrets.MYSQL_USER }}'@'localhost' IDENTIFIED BY '${{ secrets.MYSQL_PASSWORD }}';
-              GRANT ALL PRIVILEGES ON ${{ secrets.MYSQL_DATABASE }}.* TO '${{ secrets.MYSQL_USER }}'@'localhost';
+              CREATE USER IF NOT EXISTS '${{ secrets.MYSQL_USER }}'@'%' IDENTIFIED BY '${{ secrets.MYSQL_PASSWORD }}';
+              GRANT ALL PRIVILEGES ON ${{ secrets.MYSQL_DATABASE }}.* TO '${{ secrets.MYSQL_USER }}'@'%';
               FLUSH PRIVILEGES;
             SQL
 
