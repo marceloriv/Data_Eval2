@@ -13,14 +13,14 @@ DELIMITER //
 CREATE PROCEDURE sp_limpiar_usuarios_inactivos(IN dias_antiguedad INT)
 BEGIN
     DECLARE cantidad_eliminados INT DEFAULT 0;
-    
+
     -- Eliminar usuarios inactivos con más de X días de antigüedad
-    DELETE FROM usuarios 
-    WHERE estado = 'inactivo' 
+    DELETE FROM usuarios
+    WHERE estado = 'inactivo'
     AND fecha_actualizacion < DATE_SUB(NOW(), INTERVAL dias_antiguedad DAY);
-    
+
     SET cantidad_eliminados = ROW_COUNT();
-    
+
     -- Registrar la operación
     SELECT CONCAT('Se eliminaron ', cantidad_eliminados, ' usuarios inactivos antiguos') AS mensaje;
 END //
@@ -38,16 +38,16 @@ BEGIN
         edad_promedio DECIMAL(5,2),
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    
+
     -- Insertar datos actuales
     INSERT INTO temp_estadisticas (total_usuarios, usuarios_activos, usuarios_inactivos, edad_promedio)
-    SELECT 
+    SELECT
         COUNT(*) as total_usuarios,
         COUNT(CASE WHEN estado = 'activo' THEN 1 END) as usuarios_activos,
         COUNT(CASE WHEN estado = 'inactivo' THEN 1 END) as usuarios_inactivos,
         AVG(edad) as edad_promedio
     FROM usuarios;
-    
+
     -- Mostrar estadísticas
     SELECT * FROM temp_estadisticas;
 END //
@@ -58,25 +58,25 @@ DELIMITER //
 CREATE PROCEDURE sp_validar_integridad()
 BEGIN
     -- Verificar emails duplicados (no debería haber por la constraint UNIQUE)
-    SELECT 
+    SELECT
         email,
         COUNT(*) as cantidad_duplicados
     FROM usuarios
     GROUP BY email
     HAVING COUNT(*) > 1;
-    
+
     -- Verificar usuarios con edad inválida
-    SELECT 
+    SELECT
         id,
         nombre,
         email,
         edad
     FROM usuarios
-    WHERE edad IS NOT NULL 
+    WHERE edad IS NOT NULL
     AND (edad < 0 OR edad > 150);
-    
+
     -- Verificar usuarios sin email
-    SELECT 
+    SELECT
         id,
         nombre
     FROM usuarios
@@ -90,31 +90,34 @@ DELIMITER ;
 
 -- Función para calcular edad a partir de fecha de nacimiento (futura implementación)
 DELIMITER //
-CREATE FUNCTION fn_calcular_edad(fecha_nacimiento DATE) 
+CREATE FUNCTION fn_calcular_edad(fecha_nacimiento DATE)
 RETURNS INT
 DETERMINISTIC
 READS SQL DATA
 BEGIN
     DECLARE edad INT;
-    
+
     SET edad = TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE());
-    
+
     RETURN edad;
 END //
 DELIMITER ;
 
 -- Función para formatear nombre completo
 DELIMITER //
-CREATE FUNCTION fn_formatear_nombre(nombre VARCHAR(100)) 
+CREATE FUNCTION fn_formatear_nombre(nombre VARCHAR(100))
 RETURNS VARCHAR(100)
 DETERMINISTIC
 READS SQL DATA
 BEGIN
     DECLARE nombre_formateado VARCHAR(100);
-    
+
     -- Convertir a formato título (primera letra mayúscula)
-    SET nombre_formateado = UPPER(LEFT(nombre, 1)) + LOWER(SUBSTRING(nombre, 2));
-    
+        SET nombre_formateado =
+        CONCAT(
+            UPPER(LEFT(nombre,1)),
+            LOWER(SUBSTRING(nombre,2))
+        );
     RETURN nombre_formateado;
 END //
 DELIMITER ;
@@ -130,9 +133,9 @@ AFTER INSERT ON usuarios
 FOR EACH ROW
 BEGIN
     -- Aquí se podría insertar en una tabla de auditoría
-    -- Ejemplo: INSERT INTO auditoria_usuarios (accion, usuario_id, datos_antiguos, datos_nuevos, fecha) 
+    -- Ejemplo: INSERT INTO auditoria_usuarios (accion, usuario_id, datos_antiguos, datos_nuevos, fecha)
     -- VALUES ('INSERT', NEW.id, NULL, JSON_OBJECT('nombre', NEW.nombre, 'email', NEW.email), NOW());
-    
+
     -- Por ahora, solo un log simple
     SELECT CONCAT('Nuevo usuario creado: ', NEW.nombre, ' (ID: ', NEW.id, ')') AS mensaje;
 END //
@@ -146,7 +149,7 @@ FOR EACH ROW
 BEGIN
     -- El timestamp de actualización se maneja automáticamente con DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     -- Pero aquí podríamos agregar lógica adicional de auditoría
-    
+
     -- Ejemplo: registrar cambios significativos
     IF OLD.nombre != NEW.nombre OR OLD.email != NEW.email OR OLD.estado != NEW.estado THEN
         -- Aquí se podría registrar en tabla de auditoría
@@ -190,7 +193,7 @@ DELIMITER ;
 -- =====================================================
 
 -- Ver tamaño de la base de datos
-SELECT 
+SELECT
     table_schema as 'Base de Datos',
     ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Tamaño (MB)'
 FROM information_schema.tables
@@ -198,7 +201,7 @@ WHERE table_schema = 'proyecto_db'
 GROUP BY table_schema;
 
 -- Ver tamaño de tablas individuales
-SELECT 
+SELECT
     table_name as 'Tabla',
     ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Tamaño (MB)'
 FROM information_schema.tables
@@ -206,7 +209,7 @@ WHERE table_schema = 'proyecto_db'
 ORDER BY (data_length + index_length) DESC;
 
 -- Ver usuarios por estado
-SELECT 
+SELECT
     estado,
     COUNT(*) as cantidad,
     ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM usuarios), 2) as porcentaje
@@ -214,8 +217,8 @@ FROM usuarios
 GROUP BY estado;
 
 -- Ver distribución de edades
-SELECT 
-    CASE 
+SELECT
+    CASE
         WHEN edad IS NULL THEN 'No especificada'
         WHEN edad < 18 THEN 'Menor de 18'
         WHEN edad BETWEEN 18 AND 25 THEN '18-25 años'
@@ -225,8 +228,8 @@ SELECT
     END as rango_edad,
     COUNT(*) as cantidad
 FROM usuarios
-GROUP BY 
-    CASE 
+GROUP BY
+    CASE
         WHEN edad IS NULL THEN 'No especificada'
         WHEN edad < 18 THEN 'Menor de 18'
         WHEN edad BETWEEN 18 AND 25 THEN '18-25 años'
